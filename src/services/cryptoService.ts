@@ -43,6 +43,28 @@ export async function getCoinMarketChart(coinId: string, days: number): Promise<
     .sort((a, b) => a[0] - b[0]);
 }
 
+// currency code → value of 1 BTC in that currency (CoinGecko's base is BTC)
+export type ExchangeRates = Record<string, number>;
+
+export const isExchangeRates = (value: unknown): value is ExchangeRates =>
+  !!value &&
+  typeof value === "object" &&
+  !Array.isArray(value) &&
+  isNum((value as ExchangeRates).usd) &&
+  (value as ExchangeRates).usd > 0 &&
+  Object.values(value).every(isNum);
+
+// One call returns every fiat currency, so switching currency never needs another call.
+export const getExchangeRates = async (): Promise<ExchangeRates> => {
+  const res = await api.get(`exchange_rates`);
+  const rates: Record<string, { type?: string; value?: unknown }> = res.data?.rates ?? {};
+  const out: ExchangeRates = {};
+  for (const [code, r] of Object.entries(rates)) {
+    if (r?.type === "fiat" && isNum(r.value) && r.value > 0) out[code] = r.value;
+  }
+  return out;
+};
+
 export const ticksKey = (coinId: string) => `ticks:${coinId}`;
 
 // Every markets poll gives us a fresh price per coin. Keeping them as "ticks" lets the

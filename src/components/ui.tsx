@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { formatPercent, formatPrice } from "../helper/format";
+import { useCurrency } from "../hooks/useCurrency";
 
 export const cx = (...classes: Array<string | false | null | undefined>) =>
   classes.filter(Boolean).join(" ");
@@ -34,18 +35,20 @@ export const ChangeBadge: React.FC<{ value: number | null | undefined; className
   );
 };
 
-// Price that briefly highlights green/red when it changes.
+// Price that briefly highlights green/red when it changes (not when the currency changes).
 export const FlashPrice: React.FC<{ value: number; className?: string }> = ({ value, className }) => {
-  const prev = useRef(value);
+  const currency = useCurrency();
+  const prev = useRef({ value, currency });
   const [flash, setFlash] = useState<"up" | "down" | null>(null);
 
   useEffect(() => {
-    if (value === prev.current) return;
-    setFlash(value > prev.current ? "up" : "down");
-    prev.current = value;
+    const last = prev.current;
+    prev.current = { value, currency };
+    if (value === last.value || currency !== last.currency) return;
+    setFlash(value > last.value ? "up" : "down");
     const t = window.setTimeout(() => setFlash(null), 1200);
     return () => window.clearTimeout(t);
-  }, [value]);
+  }, [value, currency]);
 
   return (
     <span
@@ -56,7 +59,7 @@ export const FlashPrice: React.FC<{ value: number; className?: string }> = ({ va
         className
       )}
     >
-      {formatPrice(value)}
+      {formatPrice(value, currency)}
     </span>
   );
 };

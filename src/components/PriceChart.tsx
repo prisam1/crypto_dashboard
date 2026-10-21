@@ -13,6 +13,7 @@ import { CHART_RANGES, RANGE_KEYS, RangeKey } from "../config";
 import { ChartDataPoint, CryptoData, PricePoint } from "../types/types";
 import { formatAxisPrice, formatAxisTime, formatDateTime, formatPrice, formatRelative } from "../helper/format";
 import { useMediaQuery, useNow } from "../hooks/useBrowser";
+import { useCurrency } from "../hooks/useCurrency";
 import { ChangeBadge, cx, FlashPrice, Panel, Skeleton } from "./ui";
 
 interface Props {
@@ -27,13 +28,18 @@ interface Props {
   onRetry: () => void;
 }
 
-const TooltipContent = ({ active, payload }: TooltipContentProps<number, string>) => {
+// Recharts clones this element with the tooltip props; currency is passed in explicitly.
+const TooltipContent = ({
+  active,
+  payload,
+  currency,
+}: Partial<TooltipContentProps<number, string>> & { currency: string }) => {
   if (!active || !payload?.length) return null;
   const p = payload[0].payload as ChartDataPoint;
   return (
     <div className="rounded-lg border border-white/10 bg-slate-950/95 px-3 py-2 shadow-xl">
       <div className="text-xs text-slate-400">{formatDateTime(p.timestamp)}</div>
-      <div className="font-semibold tabular-nums text-slate-50">{formatPrice(p.price)}</div>
+      <div className="font-semibold tabular-nums text-slate-50">{formatPrice(p.price, currency)}</div>
     </div>
   );
 };
@@ -88,6 +94,7 @@ const PriceChart: React.FC<Props> = ({
   onRetry,
 }) => {
   const wide = useMediaQuery("(min-width: 640px)");
+  const currency = useCurrency();
 
   const data = useMemo<ChartDataPoint[]>(
     () => points.map(([timestamp, price]) => ({ timestamp, price })),
@@ -169,13 +176,13 @@ const PriceChart: React.FC<Props> = ({
                 hide={!wide}
                 width={76}
                 tickCount={5}
-                tickFormatter={formatAxisPrice}
+                tickFormatter={(v: number) => formatAxisPrice(v, currency)}
                 tick={{ fill: "#64748b", fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
               />
               <Tooltip
-                content={TooltipContent}
+                content={<TooltipContent currency={currency} />}
                 cursor={{ stroke: "#475569", strokeDasharray: "4 4" }}
               />
               <Area

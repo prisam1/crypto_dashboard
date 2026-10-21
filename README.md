@@ -46,6 +46,10 @@ Every response is saved (memory + localStorage) and reused:
 - Switching coins or ranges uses saved data instantly; no call if it's still fresh.
 - Hidden tab or offline: no calls. Failures back off (30s → 10min); after a 429 all requests pause for the cooldown.
 - Manual refresh is free if prices are less than 15s old.
+- Currency: data is always fetched in USD and converted in the browser using /exchange_rates (one call covers 81 currencies, refreshed every 30 min, only when a non-USD currency is selected). Switching currency costs 0 calls.
+- Hard cap: at most 8 calls per minute per tab (REACT_APP_MAX_CALLS_PER_MINUTE); extra requests wait instead of triggering a 429.
+
+Typical use is about 1 call per minute per open tab. Without an API key, CoinGecko's limit applies per visitor's IP. With a Demo key (100 calls/min, 10,000 calls/month), the key ships in the browser bundle and all visitors share its monthly quota.
 
 ## Technologies Used
 React 19 – UI library

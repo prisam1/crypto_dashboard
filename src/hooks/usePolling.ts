@@ -5,13 +5,14 @@ import { retryDelayMs } from "../services/errors";
 // `task` resolves to how long to wait before the next run; failures back off exponentially.
 // Changing `key` (e.g. switching coin) runs the task again right away; the task decides,
 // from the cache, whether that actually needs a network call.
-export const usePolling = (task: () => Promise<number>, key: string) => {
+export const usePolling = (task: () => Promise<number>, key: string, enabled = true) => {
   const taskRef = useRef(task);
   useEffect(() => {
     taskRef.current = task;
   });
 
   useEffect(() => {
+    if (!enabled) return;
     let timer: number | undefined;
     let cancelled = false;
     let failures = 0;
@@ -52,5 +53,5 @@ export const usePolling = (task: () => Promise<number>, key: string) => {
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("online", resume);
     };
-  }, [key]);
+  }, [key, enabled]);
 };

@@ -51,6 +51,32 @@ export const RANGE_KEYS = Object.keys(CHART_RANGES) as RangeKey[];
 export const isRangeKey = (v: unknown): v is RangeKey =>
   typeof v === "string" && v in CHART_RANGES;
 
+// Currency conversion. Prices are always fetched in USD and converted in the browser with
+// CoinGecko's /exchange_rates (one call for all currencies), so switching currency is free.
+// Fiat exchange rates move slowly, so refreshing them every 30 minutes is plenty.
+export const FX_REFRESH_MS = 30 * MINUTE;
+
+export const POPULAR_CURRENCIES = ["usd", "eur", "gbp", "inr", "jpy", "aud", "cad", "chf", "cny", "aed", "sgd"];
+
+// Fiat currencies supported by /exchange_rates (all valid ISO 4217 codes).
+export const CURRENCIES = [
+  "usd", "aed", "ars", "aud", "bdt", "bhd", "bmd", "brl", "cad", "chf", "clp", "cny", "czk",
+  "dkk", "eur", "gbp", "gel", "hkd", "huf", "idr", "ils", "inr", "jpy", "krw", "kwd", "lkr",
+  "mmk", "mxn", "myr", "ngn", "nok", "nzd", "php", "pkr", "pln", "rub", "sar", "sek", "sgd",
+  "thb", "try", "twd", "uah", "vef", "vnd", "zar", "xdr", "cop", "kes", "ron", "dop", "crc",
+  "hnl", "zmw", "svc", "bam", "pen", "gtq", "lbp", "amd", "ghs", "uyu", "ugx", "egp", "xaf",
+  "xof", "etb", "mad", "khr", "bob", "uzs", "jod", "jmd", "isk", "kzt", "bgn", "aoa", "azn",
+  "mga", "mdl", "pgk",
+];
+
+export const isCurrency = (v: unknown): v is string => typeof v === "string" && CURRENCIES.includes(v);
+
+// Hard cap on API calls from this tab. CoinGecko's keyless API allows roughly 5–30 calls/min
+// per IP (it varies with load), so extra requests wait in a queue instead of hitting a 429.
+const envMaxCalls = Number(process.env.REACT_APP_MAX_CALLS_PER_MINUTE);
+export const MAX_CALLS_PER_MINUTE =
+  Number.isInteger(envMaxCalls) && envMaxCalls > 0 ? envMaxCalls : 8;
+
 // Failed requests back off exponentially between these bounds.
 export const RETRY_BASE_MS = 30 * SECOND;
 export const RETRY_MAX_MS = 10 * MINUTE;

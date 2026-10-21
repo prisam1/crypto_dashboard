@@ -1,27 +1,24 @@
 import { RangeKey } from "../config";
 
-// Intl formatters are expensive to create, so build each one once.
-const priceFormatters = new Map<number, Intl.NumberFormat>();
-const priceFormatter = (digits: number) => {
-  let f = priceFormatters.get(digits);
+// Intl formatters are expensive to create, so build each one once per currency/precision.
+const formatters = new Map<string, Intl.NumberFormat>();
+const formatter = (currency: string, digits: number | "compact") => {
+  const key = `${currency}:${digits}`;
+  let f = formatters.get(key);
   if (!f) {
-    f = new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: digits,
-      maximumFractionDigits: digits,
-    });
-    priceFormatters.set(digits, f);
+    const options: Intl.NumberFormatOptions =
+      digits === "compact"
+        ? { notation: "compact", maximumFractionDigits: 2 }
+        : { minimumFractionDigits: digits, maximumFractionDigits: digits };
+    try {
+      f = new Intl.NumberFormat("en-US", { style: "currency", currency: currency.toUpperCase(), ...options });
+    } catch {
+      f = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", ...options });
+    }
+    formatters.set(key, f);
   }
   return f;
 };
-
-const compactFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  notation: "compact",
-  maximumFractionDigits: 2,
-});
 
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
@@ -33,14 +30,14 @@ const digitsFor = (value: number) => {
   return 6;
 };
 
-export const formatPrice = (value: number | null | undefined): string =>
-  isNum(value) ? priceFormatter(digitsFor(value)).format(value) : "—";
+export const formatPrice = (value: number | null | undefined, currency = "usd"): string =>
+  isNum(value) ? formatter(currency, digitsFor(value)).format(value) : "—";
 
-export const formatCompactUsd = (value: number | null | undefined): string =>
-  isNum(value) ? compactFormatter.format(value) : "—";
+export const formatCompactPrice = (value: number | null | undefined, currency = "usd"): string =>
+  isNum(value) ? formatter(currency, "compact").format(value) : "—";
 
-export const formatAxisPrice = (value: number): string =>
-  Math.abs(value) >= 10000 ? compactFormatter.format(value) : formatPrice(value);
+export const formatAxisPrice = (value: number, currency = "usd"): string =>
+  Math.abs(value) >= 10000 ? formatCompactPrice(value, currency) : formatPrice(value, currency);
 
 export const formatPercent = (value: number | null | undefined): string =>
   isNum(value) ? `${value >= 0 ? "+" : ""}${value.toFixed(2)}%` : "—";

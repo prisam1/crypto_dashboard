@@ -1,5 +1,19 @@
 import { PricePoint } from "../types/types";
-import { mergeSeries, tailIsContinuous } from "./series";
+import { convertCoin, convertPoints, mergeSeries, tailIsContinuous } from "./series";
+
+test("currency conversion scales prices but not percentages", () => {
+  const coin = {
+    id: "bitcoin", symbol: "btc", name: "Bitcoin", image: "",
+    current_price: 100, market_cap: 1000, total_volume: null, high_24h: 110, low_24h: 90,
+    market_cap_rank: 1, price_change_percentage_24h: 2.5,
+  };
+  const inr = convertCoin(coin, 80);
+  expect(inr.current_price).toBe(8000);
+  expect(inr.market_cap).toBe(80000);
+  expect(inr.total_volume).toBeNull();
+  expect(inr.price_change_percentage_24h).toBe(2.5);
+  expect(convertPoints([[1, 2]], 3)).toEqual([[1, 6]]);
+});
 
 const MIN = 60_000;
 
