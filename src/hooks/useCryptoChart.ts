@@ -1,90 +1,65 @@
-import { useCallback, useEffect, useRef, useState } from "react"; 
-import { getCoinMarketChart } from "../services/cryptoService";
-import { formatPrices } from "../helper/format";
+import { useCallback, useMemo } from "react";
+import { CHART_RANGES, MAX_TICK_GAP_MS, PRICE_REFRESH_MS, RangeKey } from "../config";
+import { getResource, load } from "../services/cache";
+import { getCoinMarketChart, isPricePoints, ticksKey } from "../services/cryptoService";
+import { mergeSeries, tailIsContinuous } from "../helper/series";
+import { usePolling } from "./usePolling";
+import { useResource } from "./useResource";
 
-// type for chart points (used by Recharts or Chart.js)
-export type ChartDataPoint = { date: string; price: number };
+// Chart for the selected coin.
+// History comes from /market_chart (cached per coin + days, saved across reloads).
+// The newest part comes from live ticks recorded by the markets poll, so the chart keeps
+// moving without extra calls. /market_chart is only called again when the saved history
+// is missing, too old, or the live tail has gaps (e.g. the tab was in the background).
+export const useCryptoChart = (coinId: string, range: RangeKey) => {
+  const { days, windowMs, staleAfterMs, maxAgeMs } = CHART_RANGES[range];
+  // 6H and 24H share this key → one call serves both
+  const key = `chart:${coinId}:${days}`;
 
-// cache structure → avoids re-fetching the same coin repeatedly
-type ChartCacheEntry = { data: ChartDataPoint[]; timestamp: number };
-const chartCache: Record<string, ChartCacheEntry> = {};
+  const chart = useResource(key, isPricePoints);
+  const ticks = useResource(ticksKey(coinId), isPricePoints);
 
-export const useCryptoChart = (coinId: string) => {
- 
-
-  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
-  const [chartLoading, setChartLoading] = useState<boolean>(true);
-  const [chartError, setChartError] = useState<string | null>(null);
-
-  // keep track of last timestamp we already have (avoid duplicates)
-  const lastTimestampRef = useRef<number | null>(null);
-
-  // fetch chart data
-  const fetchChartData = useCallback(
-    async (initial = false) => {
-      if (!coinId) return; // no coin selected → do nothing
-      const now = Date.now();
-
-      // use cache if available and fresh (<30s old)
-      if (
-        initial &&
-        chartCache[coinId] &&
-        now - chartCache[coinId].timestamp < 30000
-      ) {
-        setChartData(chartCache[coinId].data);
-        // set the last timestamp for incremental updates
-        lastTimestampRef.current = chartCache[coinId].data.at(-1)
-          ? new Date(chartCache[coinId].data.at(-1)!.date).getTime()
-          : null;
-        setChartLoading(false);
-        return;
-      }
-
-      try { 
-        const prices = await getCoinMarketChart(coinId, 0.25);
-        const formattedData = formatPrices(prices as [number, number][]);
-
-        if (initial) {
-          // First load → replace everything
-          chartCache[coinId] = { data: formattedData, timestamp: now };
-          setChartData(formattedData);
-          lastTimestampRef.current = prices.at(-1)?.[0] ?? null;
-        } else {
-          // Incremental update → only add new points
-          const lastKnown = lastTimestampRef.current;
-          const newPoints = (prices as [number, number][]).filter(
-            ([ts]) => ts > (lastKnown ?? 0)
-          );
-
-          if (newPoints.length) {
-
-            const newFormatted = formatPrices(newPoints);
-
-            // append new points + keep only last 100 for performance
-            setChartData((prev) => [...prev, ...newFormatted].slice(-100));
-            // update last timestamp so next fetch knows where to continue
-            lastTimestampRef.current = newPoints.at(-1)?.[0] ?? lastKnown;
-          }
-        }
-
-        setChartError(null); // clear error if successful
-      } catch {
-        setChartError("Failed to fetch chart data.");
-      } finally {
-        setChartLoading(false);
-      }
-    },
-    [coinId] // re-run only if coinId changes
+  const fetchChart = useCallback(
+    (force: boolean) =>
+      load(key, {
+        validate: isPricePoints,
+        fetcher: () => getCoinMarketChart(coinId, days),
+        isFresh: ({ data, fetchedAt }) => {
+          if (force) return false;
+          const now = Date.now();
+          const age = now - fetchedAt;
+          if (age < staleAfterMs) return true;
+          if (age >= maxAgeMs || !data.length) return false;
+          const liveTicks = getResource(ticksKey(coinId), isPricePoints).data;
+          return tailIsContinuous(data[data.length - 1][0], liveTicks, now, MAX_TICK_GAP_MS);
+        },
+      }),
+    [key, coinId, days, staleAfterMs, maxAgeMs]
   );
 
-  useEffect(() => {
-    setChartLoading(true);
-    fetchChartData(true); // initial load
+  // Re-checks freshness once per price cycle; this is a cache lookup, not an API call.
+  usePolling(async () => {
+    await fetchChart(false);
+    return PRICE_REFRESH_MS;
+  }, key);
 
-    // fixed 30s interval, keeps chart updating without drift
-    const intervalId = setInterval(() => fetchChartData(false), 30000);
-    return () => clearInterval(intervalId); // cleanup
-  }, [coinId, fetchChartData]);
+  const retry = useCallback(() => {
+    fetchChart(true).catch(() => {
+      // error is already stored on the resource and shown in the UI
+    });
+  }, [fetchChart]);
 
-  return { chartData, chartLoading, chartError };
+  const points = useMemo(
+    () => mergeSeries(chart.data, ticks.data, windowMs),
+    [chart.data, ticks.data, windowMs]
+  );
+
+  return {
+    points,
+    chartLoading: chart.data === null && !chart.error,
+    chartRefreshing: chart.fetching,
+    chartError: chart.error,
+    chartUpdatedAt: chart.fetchedAt,
+    retry,
+  };
 };

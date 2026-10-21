@@ -3,7 +3,7 @@ module.exports = {
   theme: {
     extend: {
       boxShadow: {
-        soft: "0 8px 30px rgba(0,0,0,0.06)",
+        soft: "0 8px 30px rgba(0,0,0,0.25)",
       },
       maxWidth: {
         content: "1200px",
@@ -11,6 +11,20 @@ module.exports = {
       borderRadius: {
         "2xl": "1rem",
         "3xl": "1.25rem",
+      },
+      keyframes: {
+        "flash-up": {
+          "0%": { backgroundColor: "rgba(52, 211, 153, 0.25)" },
+          "100%": { backgroundColor: "transparent" },
+        },
+        "flash-down": {
+          "0%": { backgroundColor: "rgba(251, 113, 133, 0.25)" },
+          "100%": { backgroundColor: "transparent" },
+        },
+      },
+      animation: {
+        "flash-up": "flash-up 1.2s ease-out",
+        "flash-down": "flash-down 1.2s ease-out",
       },
     },
   },
