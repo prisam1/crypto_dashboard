@@ -1,4 +1,4 @@
-import { PricePoint } from "../types/types";
+import { CryptoData, PricePoint } from "../types/types";
 
 // Chart history + live ticks newer than it, trimmed to the visible window.
 // Inputs are sorted by timestamp ascending.
@@ -31,6 +31,22 @@ export const tailIsContinuous = (
   }
   return now - prev <= maxGapMs;
 };
+
+// USD → display currency. Percentages and the sparkline shape don't change with currency.
+export const convertCoin = (coin: CryptoData, rate: number): CryptoData => {
+  const scale = (v: number | null) => (v == null ? v : v * rate);
+  return {
+    ...coin,
+    current_price: coin.current_price * rate,
+    market_cap: scale(coin.market_cap),
+    total_volume: scale(coin.total_volume),
+    high_24h: scale(coin.high_24h),
+    low_24h: scale(coin.low_24h),
+  };
+};
+
+export const convertPoints = (points: PricePoint[], rate: number): PricePoint[] =>
+  rate === 1 ? points : points.map(([ts, price]) => [ts, price * rate]);
 
 // Last 24 hourly points of CoinGecko's 7d sparkline → a 24h trend line for the cards.
 export const last24h = (sparkline: number[] | undefined | null): number[] =>

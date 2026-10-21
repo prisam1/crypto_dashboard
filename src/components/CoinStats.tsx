@@ -1,6 +1,7 @@
 import React from "react";
 import { CryptoData } from "../types/types";
-import { formatCompactUsd, formatPrice } from "../helper/format";
+import { formatCompactPrice, formatPrice } from "../helper/format";
+import { useCurrency } from "../hooks/useCurrency";
 import { ChangeBadge, Panel, Skeleton } from "./ui";
 
 // All of this comes from the markets response we already have — no extra API calls.
@@ -13,6 +14,7 @@ const Stat: React.FC<React.PropsWithChildren<{ label: string }>> = ({ label, chi
 );
 
 const DayRange: React.FC<{ coin: CryptoData }> = ({ coin }) => {
+  const currency = useCurrency();
   const { low_24h: low, high_24h: high, current_price: price } = coin;
   if (low == null || high == null) return null;
   const pct = high > low ? Math.min(100, Math.max(0, ((price - low) / (high - low)) * 100)) : 50;
@@ -29,45 +31,48 @@ const DayRange: React.FC<{ coin: CryptoData }> = ({ coin }) => {
         />
       </div>
       <div className="mt-2 flex justify-between text-sm font-semibold tabular-nums text-slate-200">
-        <span>{formatPrice(low)}</span>
-        <span>{formatPrice(high)}</span>
+        <span>{formatPrice(low, currency)}</span>
+        <span>{formatPrice(high, currency)}</span>
       </div>
     </div>
   );
 };
 
-const CoinStats: React.FC<{ coin?: CryptoData }> = ({ coin }) => (
-  <Panel className="p-4 sm:p-6">
-    <h2 className="text-sm font-semibold text-slate-200">Market stats</h2>
-    {coin ? (
-      <div className="mt-4 space-y-5">
-        <DayRange coin={coin} />
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2">
-          <Stat label="Market cap">{formatCompactUsd(coin.market_cap)}</Stat>
-          <Stat label="Volume 24h">{formatCompactUsd(coin.total_volume)}</Stat>
-          <Stat label="Rank">{coin.market_cap_rank ? `#${coin.market_cap_rank}` : "—"}</Stat>
-          <Stat label="1h change">
-            <ChangeBadge value={coin.price_change_percentage_1h_in_currency} className="-ml-1.5" />
-          </Stat>
-          <Stat label="24h change">
-            <ChangeBadge value={coin.price_change_percentage_24h} className="-ml-1.5" />
-          </Stat>
-          <Stat label="7d change">
-            <ChangeBadge value={coin.price_change_percentage_7d_in_currency} className="-ml-1.5" />
-          </Stat>
+const CoinStats: React.FC<{ coin?: CryptoData }> = ({ coin }) => {
+  const currency = useCurrency();
+  return (
+    <Panel className="p-4 sm:p-6">
+      <h2 className="text-sm font-semibold text-slate-200">Market stats</h2>
+      {coin ? (
+        <div className="mt-4 space-y-5">
+          <DayRange coin={coin} />
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2">
+            <Stat label="Market cap">{formatCompactPrice(coin.market_cap, currency)}</Stat>
+            <Stat label="Volume 24h">{formatCompactPrice(coin.total_volume, currency)}</Stat>
+            <Stat label="Rank">{coin.market_cap_rank ? `#${coin.market_cap_rank}` : "—"}</Stat>
+            <Stat label="1h change">
+              <ChangeBadge value={coin.price_change_percentage_1h_in_currency} className="-ml-1.5" />
+            </Stat>
+            <Stat label="24h change">
+              <ChangeBadge value={coin.price_change_percentage_24h} className="-ml-1.5" />
+            </Stat>
+            <Stat label="7d change">
+              <ChangeBadge value={coin.price_change_percentage_7d_in_currency} className="-ml-1.5" />
+            </Stat>
+          </div>
         </div>
-      </div>
-    ) : (
-      <div className="mt-4 space-y-4">
-        <Skeleton className="h-12" />
-        <div className="grid grid-cols-2 gap-2">
-          {Array.from({ length: 6 }, (_, i) => (
-            <Skeleton key={i} className="h-14" />
-          ))}
+      ) : (
+        <div className="mt-4 space-y-4">
+          <Skeleton className="h-12" />
+          <div className="grid grid-cols-2 gap-2">
+            {Array.from({ length: 6 }, (_, i) => (
+              <Skeleton key={i} className="h-14" />
+            ))}
+          </div>
         </div>
-      </div>
-    )}
-  </Panel>
-);
+      )}
+    </Panel>
+  );
+};
 
 export default React.memo(CoinStats);

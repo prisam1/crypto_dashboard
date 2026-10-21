@@ -1,6 +1,7 @@
 import axios from "axios";
-import { RATE_LIMIT_COOLDOWN_MS } from "../config";
+import { MAX_CALLS_PER_MINUTE, RATE_LIMIT_COOLDOWN_MS } from "../config";
 import { RateLimitError } from "./errors";
+import { createRateLimiter } from "./rateLimiter";
 
 const baseURL = process.env.REACT_APP_API_BASE;
 // Optional CoinGecko key. Demo keys use the public host; Pro keys use pro-api.coingecko.com.
@@ -22,9 +23,19 @@ const parseRetryAfter = (value: unknown): number | null => {
   return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : null;
 };
 
-api.interceptors.request.use((config) => {
+// Never send more than MAX_CALLS_PER_MINUTE. Extra requests wait for a free slot
+// (e.g. a user rapidly clicking through every coin and range) instead of causing a 429.
+const waitForSlot = createRateLimiter(MAX_CALLS_PER_MINUTE, 60000);
+
+const checkCooldown = () => {
   const wait = cooldownUntil - Date.now();
-  if (wait > 0) return Promise.reject(new RateLimitError(wait));
+  if (wait > 0) throw new RateLimitError(wait);
+};
+
+api.interceptors.request.use(async (config) => {
+  checkCooldown();
+  await waitForSlot();
+  checkCooldown(); // a 429 may have arrived while this request was queued
   return config;
 });
 
